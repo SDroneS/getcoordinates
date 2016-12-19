@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no">
+    <meta name="description" content="Gets coordinates of border and obstacle points">
+    <title>GET COORDINATES</title>
+    <base href="http://cesiumjs.org/releases/1.27/Apps/Sandcastle/gallery/">
+    <script type="text/javascript" src="http://cesiumjs.org/releases/1.27/Apps/Sandcastle/Sandcastle-header.js"></script>
+    <script type="text/javascript" src="http://cesiumjs.org/releases/1.27/Build/Cesium/Cesium.js"></script>
+</head>
+<body class="sandcastle-loading" data-sandcastle-bucket="bucket-requirejs.html">
+<style>
+    @import url(../templates/bucket.css);
+</style>
+<div id="cesiumContainer" class="fullSize"></div>
+<div id="loadingOverlay"><h1>Loading...</h1></div>
+<div id="toolbar"></div>
+
+<script id="cesium_sandcastle_script">
+function startup(Cesium) {
+    'use strict';
+//Sandcastle_Begin
+Cesium.BingMapsApi.defaultKey = 'AoVAit6QELidKrHbgDmc3d2lwC5Q49B8hlMgmD-9pzRY1fRhw-ZjLV3VfQG-_5XJ';
+var viewer = new Cesium.Viewer('cesiumContainer', {
+    terrainProvider : new Cesium.CesiumTerrainProvider({
+        url : 'https://assets.agi.com/stk-terrain/world'
+    }),
+    animation: false,
+    selectionIndicator: false,
+    baseLayerPicker : false,
+    timeline : false,
+    homeButton : false,
+    imageryProvider : new Cesium.BingMapsImageryProvider({
+    url : 'https://dev.virtualearth.net',
+    key : 'AoVAit6QELidKrHbgDmc3d2lwC5Q49B8hlMgmD-9pzRY1fRhw-ZjLV3VfQG-_5XJ',
+    mapStyle : Cesium.BingMapsStyle.AERIAL_WITH_LABELS
+    })    
+});
+
+viewer.camera.flyTo({
+            destination : Cesium.Cartesian3.fromDegrees(20, 52, 10e5)
+        });
+
+viewer.scene.globe.depthTestAgainstTerrain = true;
+var scene = viewer.scene;
+var handler = new Cesium.ScreenSpaceEventHandler(viewer.canvas);
+
+var global_index = 0;
+var border_index = 0;
+var obstacle_index = 0;
+var point_no = 0;
+
+function create_point(place)
+{
+    var point_properties = new Cesium.PointGraphics({
+    pixelSize : 10,
+    color : Cesium.Color.BLUE,
+    show : true,
+    scaleByDistance : new Cesium.NearFarScalar(0.0, 1, 3e4, 0.5),
+    heightReference : Cesium.HeightReference.CLAMP_TO_GROUND,
+    });
+    
+    viewer.entities.add({
+        name : 'temp',
+        id : global_index,
+        position : place,        
+        point : point_properties.clone(),
+        });
+    point_no++;
+    global_index++;
+    console.log('Temporary point created.');
+}
+
+function remove_point()
+{
+    if(point_no>0)
+    {
+        point_no--;
+        global_index--;
+        viewer.entities.removeById(global_index);
+        console.log('Temporary point removed.');
+    }
+    else
+    {
+        if(global_index>0)
+        {
+            console.log('Cannot remove previous object. Press CTRL+RMB to start removing it.');
+        }
+        else
+        {
+            console.log('There is no more points to remove.');
+        }
+    }
+}
+
+function remove_object()
+{
+    if(point_no==0)
+    {
+        if(global_index>0)
+        {
+            global_index--;
+            var temp = viewer.entities.getById(global_index);
+            var no = temp.name.split('no');
+            point_no = no[1];
+            
+            if(temp.name.startsWith('b'))
+            {
+                console.log('Border object no ' + border_index + ' removed!');
+                border_index--;
+            }
+            else
+            {
+                console.log('Obstacle object no ' + obstacle_index + ' removed!');
+                obstacle_index--;
+            }
+            viewer.entities.removeById(global_index);
+            
+            
+            for(var i=0;i<point_no;i++)
+            {
+                temp = viewer.entities.getById(global_index-point_no+i);
+                temp.name = 'temp';    
+                temp.point.color = Cesium.Color.BLUE;
+            }
+        }
+        else
+        {
+            console.log('There is no more points to remove.');
+        }
+        
+    }
+    else
+    {
+        console.log('Cannot remove previous object. Remove temporary points first.');
+    }
+}
+
+function create_object(kind)
+{
+    if(point_no>0)
+    {
+        for(var i=0;i<point_no;i++)
+        {
+            var temp = viewer.entities.getById(global_index-point_no+i);
+            if(kind.startsWith('b'))
+            {   
+                temp.name = 'b'+border_index+'no'+i;    
+                temp.point.color = Cesium.Color.RED;
+
+                if(i==point_no-1)
+                {
+                    console.log('Border object no ' + border_index + ' acquired!');
+                    border_index++;
+                }
+            }
+            else
+            {
+                temp.name = 'o'+obstacle_index+'no'+i;    
+                temp.point.color = Cesium.Color.YELLOW;
+
+                if(i==point_no-1)
+                {
+                    console.log('Obstacle object no ' + obstacle_index + ' acquired!');
+                    obstacle_index++;
+                }
+            }
+        }
+        point_no = 0;
+    }
+    else
+    {
+        console.log('No point to acquire the object.');
+    }
+}
+
+function set_cookie(cookieName, cookieValue, nDays)
+{
+    var today = new Date();
+    var expire = new Date();
+    
+    if(nDays==null || nDays==0) nDays=1;
+    expire.setTime(today.getTime() + 3600000*24*nDays);
+    document.cookie = cookieName+'='+escape(cookieValue)+';expires='+expire.toGMTString();
+}
+
+function read_cookie(cookieName)
+{
+    var theCookie=' '+document.cookie;
+    var ind = theCookie.indexOf(' '+cookieName+'=');
+    if(ind==-1) ind=theCookie.indexOf(';'+cookieName+'=');
+    if(ind==-1 || cookieName=='') return '';
+    var ind1=theCookie.indexOf(';',ind+1);
+    if(ind1==-1) ind1=theCookie.length;
+    return unescape(theCookie.substring(ind+cookieName.length+2,ind1));
+}
+
+Sandcastle.addDefaultToolbarButton('Browse the map', function(){
+    handler.removeInputAction(Cesium.ScreenSpaceEventType.LEFT_CLICK);
+    handler.removeInputAction(Cesium.ScreenSpaceEventType.RIGHT_CLICK);
+    handler.removeInputAction(Cesium.ScreenSpaceEventType.RIGHT_CLICK,Cesium.KeyboardEventModifier.CTRL);
+});
+
+Sandcastle.addToolbarButton('Add/Remove Points', function(){       
+    handler.setInputAction(function(click){
+        var cartesian = scene.pickPosition(click.position);
+        
+        if(Cesium.defined(cartesian) && scene.pickPositionSupported) {     
+            create_point(cartesian);
+        }
+    },Cesium.ScreenSpaceEventType.LEFT_CLICK);
+    
+    handler.setInputAction(function(click){
+        remove_point();
+    },Cesium.ScreenSpaceEventType.RIGHT_CLICK);
+    
+    handler.setInputAction(function(click){
+        remove_object();
+    },Cesium.ScreenSpaceEventType.RIGHT_CLICK,Cesium.KeyboardEventModifier.CTRL);
+});
+    
+Sandcastle.addToolbarButton('Acquire Border Object', function(){
+    handler.removeInputAction(Cesium.ScreenSpaceEventType.LEFT_CLICK);
+    handler.removeInputAction(Cesium.ScreenSpaceEventType.RIGHT_CLICK);
+    handler.removeInputAction(Cesium.ScreenSpaceEventType.RIGHT_CLICK,Cesium.KeyboardEventModifier.CTRL);       
+    create_object('border');
+});
+
+Sandcastle.addToolbarButton('Acquire Obstacle Object', function(){
+    handler.removeInputAction(Cesium.ScreenSpaceEventType.LEFT_CLICK);
+    handler.removeInputAction(Cesium.ScreenSpaceEventType.RIGHT_CLICK);
+    handler.removeInputAction(Cesium.ScreenSpaceEventType.RIGHT_CLICK,Cesium.KeyboardEventModifier.CTRL);       
+    create_object('obstacle');
+});
+
+Sandcastle.addToolbarButton('Acquire coordinates', function(){       
+    if(border_index>0 || obstacle_index>0)
+    {
+	var coordinates = '';  
+	for(var i=0;i<global_index;i++)
+        {
+		var point = viewer.entities.getById(i);
+		var point_cartesian = point.position.getValue(viewer.clock.currentTime);
+		var point_cartographic = Cesium.Cartographic.fromCartesian(point_cartesian);
+		var longitude = Cesium.Math.toDegrees(point_cartographic.longitude);
+		var latitude = Cesium.Math.toDegrees(point_cartographic.latitude);
+		var altitude = point_cartographic.height;
+		//console.log(point.id + '   ' + point.name);
+		//console.log('LAT: ' + latitude + '   LON:' + longitude + '   AMSL:' + altitude);
+		coordinates = coordinates+point.name+' '+latitude+' '+longitude+' '+altitude+'\n';
+		set_cookie('getcoordinates',coordinates,1);
+		console.log('Cookie file created!');
+	}
+    }
+    else
+    {
+        console.log('Acquire any object first.');
+    }
+});
+
+Sandcastle.addToolbarButton('Check ciasteczko', function(){       
+    console.log(read_cookie('getcoordinates'));
+});
+		//Sandcastle_End
+    Sandcastle.finishedLoading();
+}
+if (typeof Cesium !== "undefined") {
+    startup(Cesium);
+} else if (typeof require === "function") {
+    require(["Cesium"], startup);
+}
+
+</script>
+
+</body>
+</html>
