@@ -40,24 +40,9 @@
 	<tr><td align="center"><label style="color:#edffff; font-size:10.75pt;">AGL [m] <input size="4" data-bind="value: agl"></label></td></tr>
 	<tr><td align="center"><label type="button" class="cesium-button" style="font-size:10.75pt;"><input type="checkbox" data-bind="checked: arp">Add/Remove Points</label></td></tr>
 	<tr><td align="center"><label type="button" class="cesium-button" style="font-size:10.75pt;"><input type="checkbox" data-bind="checked: so">Show Objects</label></td></tr>
-	<tr><td align="center"><label type="button" class="cesium-button" style="font-size:10.75pt;"><input type="checkbox" data-bind="checked: alm">Add Layer Menu</label></td></tr>
+	<tr><td align="center"><label type="button" class="cesium-button" style="font-size:10.75pt;"><input type="checkbox" data-bind="checked: sor">Show Orthofotomap</label></td></tr>
         </tbody>
     </table>
-<div id="layers" data-bind="visible: alm">
-    <table>
-	<tbody>
-	<tr></tr>
-	<tr><td><label style="color:#edffff; font-size:10.75pt;">Insert coordinates -</label></td>
-	<tr><td><label style="color:#edffff; font-size:10.75pt;">Bottom left corner:</label></td>
-	<tr><td><label style="color:#edffff; font-size:10.75pt;">LAT <input size="7" data-bind="value: lat1"></label></td>
-	<td><label style="color:#edffff; font-size:10.75pt;">LON <input size="7" data-bind="value: lon1"></label></td></tr>
-	<tr><td><label style="color:#edffff; font-size:10.75pt;">Top right corner:</label></td>
-	<tr><td><label style="color:#edffff; font-size:10.75pt;">LAT <input size="7" data-bind="value: lat2"></label></td>
-	<td><label style="color:#edffff; font-size:10.75pt;">LON <input size="7" data-bind="value: lon2"></label></td></tr>
-	<tr><td><label type="button" class="cesium-button" style="font-size:10.75pt;"><input type="checkbox" data-bind="checked: sr">Show/Refresh</label></td></tr>
-	</tbody>
-    </table>
-</div>
 </div>
 <script id="cesium_sandcastle_script">
 function startup(Cesium) {
@@ -416,7 +401,7 @@ function add_layer(input)
     if(input) {
         layer_instance = layer.addImageryProvider(new Cesium.SingleTileImageryProvider({
             url : '../../../layer.png',
-            rectangle : Cesium.Rectangle.fromDegrees(toolbar_def.lon1(), toolbar_def.lat1(), toolbar_def.lon2(), toolbar_def.lat2())
+            rectangle : Cesium.Rectangle.fromDegrees(/*nalezy wstawic wspolrzedne dolnego lewego i gornego prawego rogu - lon1, lat1, lon2, lat2*/)
             })
 	);
     }
@@ -437,12 +422,7 @@ var toolbar_def = {
 	agl : Cesium.knockout.observable("0"),
 	arp : Cesium.knockout.observable(false),
 	so : Cesium.knockout.observable(false),
-	alm : Cesium.knockout.observable(false),
-	lat1 : Cesium.knockout.observable("52.268487"),
-	lon1 : Cesium.knockout.observable("20.983934"),
-	lat2 : Cesium.knockout.observable("52.2692137"),
-	lon2 : Cesium.knockout.observable("20.985208"),
-	sr : Cesium.knockout.observable(false)
+	sor : Cesium.knockout.observable(false),
 };
 
 //Bindowanie definicji toolbar_def i zdarzen toolbar
@@ -459,7 +439,7 @@ toolbar_def.so.subscribe(function(newValue) {
 });
 
 //Funkcja obslugujaca dodawanie warstwy zdjeciowej
-toolbar_def.sr.subscribe(function(newValue) {
+toolbar_def.sor.subscribe(function(newValue) {
     add_layer(newValue);
 });
 
