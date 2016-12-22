@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no">
+    <meta name="description" content="Gets coordinates of border and obstacle points">
+    <title>GET COORDINATES</title>
+   <script type="text/javascript" src="../Sandcastle-header.js"></script>
+    <script type="text/javascript" src="../../../ThirdParty/requirejs-2.1.20/require.js"></script>
+    <script type="text/javascript">
+    require.config({
+        baseUrl : '../../../Source',
+        waitSeconds : 60
+    });
+    </script>
+</head>
+<body class="sandcastle-loading" data-sandcastle-bucket="bucket-requirejs.html">
+<style>
+    @import url(../templates/bucket.css);
+    #toolbar {
+        background: rgba(42, 42, 42, 0.5);
+        padding: 4px;
+        border-radius: 4px;
+    }
+    #toolbar input {
+        vertical-align: middle;
+        padding-top: 2px;
+        padding-bottom: 2px;
+    }
+</style>
+<div id="cesiumContainer" class="fullSize"></div>
+<div id="loadingOverlay"><h1>Loading...</h1></div>
+<div id="toolbar">
+    <table>
+        <tbody>
+	<tr><td align="center"><button type="button" class="cesium-button" data-bind="click: ac">Acquire Coordinates</button></td></tr>
+	<tr><td align="center"><button type="button" class="cesium-button" data-bind="click: abo">Acquire Border Object</button></td></tr>
+	<tr><td align="center"><button type="button" class="cesium-button" data-bind="click: aoo">Acquire Obstacle Object</button></td></tr>
+	<tr><td align="center"><label style="color:#edffff; font-size:10.75pt;">AGL [m] <input size="4" data-bind="value: agl"></label></td></tr>
+	<tr><td align="center"><label type="button" class="cesium-button" style="font-size:10.75pt;"><input type="checkbox" data-bind="checked: arp">Add/Remove Points</label></td></tr>
+	<tr><td align="center"><label type="button" class="cesium-button" style="font-size:10.75pt;"><input type="checkbox" data-bind="checked: so">Show Objects</label></td></tr>
+	<tr><td align="center"><label type="button" class="cesium-button" style="font-size:10.75pt;"><input type="checkbox" data-bind="checked: sor">Show Orthofotomap</label></td></tr>
+        </tbody>
+    </table>
+</div>
+<script id="cesium_sandcastle_script">
+function startup(Cesium) {
+    'use strict';
+//Sandcastle_Begin
+//Aby nie wyswietlal sie komunikat o defaultowym kluczu, trzeba przypisac go dwukrotnie
+Cesium.BingMapsApi.defaultKey = 'AoVAit6QELidKrHbgDmc3d2lwC5Q49B8hlMgmD-9pzRY1fRhw-ZjLV3VfQG-_5XJ';
+var viewer = new Cesium.Viewer('cesiumContainer', {
+    terrainProvider : new Cesium.CesiumTerrainProvider({
+        url : 'https://assets.agi.com/stk-terrain/world'
+    }),
+    imageryProvider : new Cesium.BingMapsImageryProvider({
+    url : 'https://dev.virtualearth.net',
+    key: 'AoVAit6QELidKrHbgDmc3d2lwC5Q49B8hlMgmD-9pzRY1fRhw-ZjLV3VfQG-_5XJ',
+//MapLabels
+mapStyle: Cesium.BingMapsStyle.AERIAL
+    }), 
+    animation: false,
+    selectionIndicator: false,
+    baseLayerPicker : false,
+    timeline : false,
+    homeButton : false,
+    navigationInstructionsInitiallyVisible : false,
+    terrainShadows : Cesium.ShadowMode.DISABLED   
+});
+//Zblizenie na terytorium Polski po starcie mapy
+viewer.camera.flyTo({
+    destination : Cesium.Cartesian3.fromDegrees(20, 52, 10e5)
+//destination : Cesium.Cartesian3.fromDegrees(20, 52, 1000)
+});
+viewer.scene.globe.depthTestAgainstTerrain = true;
+var scene = viewer.scene;
+var layer = viewer.imageryLayers;
+var handler = new Cesium.ScreenSpaceEventHandler(viewer.canvas);
+var toolbar = document.getElementById('toolbar');
+//Zmienne globalne zliczajace liczbe punktow i obiektow
+var global_index = 0;
+var border_index = 0;
+var obstacle_index = 0;
+var point_no = 0;
+var agl_table = new Array();
+var layer_instance;
+//Funkcja tworzaca punkt tymczasowy
+function create_point(place)
+{
+    var point_properties = new Cesium.PointGraphics({
+    pixelSize : 10,
+    color : Cesium.Color.BLUE,
+    show : true,
+    scaleByDistance : new Cesium.NearFarScalar(0.0, 1, 3e4, 0.5),
+    heightReference : Cesium.HeightReference.CLAMP_TO_GROUND,
+    });
+    
+    viewer.entities.add({
+        name : 'temp',
+        id : global_index,
+        position : place,        
+        point : point_properties.clone(),
+        });
+    point_no++;
+    global_index++;
+    console.log('Temporary point created.');
+}
+//Funkcja usuwajaca punkt tymczasowy
+function remove_point()
+{
+    if(point_no>0)
+    {
+        point_no--;
+        global_index--;
+        viewer.entities.removeById(global_index);
+        console.log('Temporary point removed.');
+    }
+    else
+    {
+        if(global_index>0)
+        {
+            console.log('Cannot remove previous object. Press CTRL+RMB to start removing it.');
+	    alert('Cannot remove previous object. Press CTRL+RMB to start removing it.');
+        }
+        else
+        {
+            console.log('There is no more points to remove.');
+	    alert('There is no more points to remove.');
+        }
+    }
+}
+//Funkcja usuwajaca ostatni punkt obiektu. Zmienia pozostale punkty obiektu na tymczasowe
+function remove_object()
+{
+    if(point_no==0)
+    {
+        if(global_index>0)
+        {
+            global_index--;
+            var temp = viewer.entities.getById(global_index);
+            var no = temp.name.split('no');
+            point_no = no[1];
+            
+            if(temp.name.startsWith('b'))
+            {
+		border_index--;
+		viewer.entities.removeById('pb'+border_index);
+                console.log('Border object no ' + border_index + ' removed!');
+            }
+            else
+            {
+		obstacle_index--;
+		viewer.entities.removeById('po'+obstacle_index);
+                console.log('Obstacle object no ' + obstacle_index + ' removed!');      
+            }
+            viewer.entities.removeById(global_index);
+	    agl_table.pop();
+                        
+            for(var i=0;i<point_no;i++)
+            {
+                temp = viewer.entities.getById(global_index-point_no+i);
+                temp.name = 'temp';    
+                temp.point.color = Cesium.Color.BLUE;
+	 	agl_table.pop();
+            }
+        }
+        else
+        {
+            console.log('There is no more points to remove.');
+	    alert('There is no more points to remove.');
+        }
+        
+    }
+    else
+    {
+        console.log('Cannot remove previous object. Remove temporary points first.');
+	alert('Cannot remove previous object. Remove temporary points first.');
+    }
+}
+//Funkcja tworzaca obiekt. Zmienia punkty tymczasowe na wlasciwe dla danego obiektu
+function create_object(kind)
+{
+    if(point_no>0)
+    {
+	if(kind.startsWith('b') && border_index>0)
+	{
+	    console.log('Cannot create more than one border object!');
+	    alert('Cannot create more than one border object!');
+	}
+	else
+	{
+	    var cartographic_table = new Array();		
+            for(var i=0;i<point_no;i++)
+            {
+                var temp = viewer.entities.getById(global_index-point_no+i);
+		var point_cartesian = temp.position.getValue(viewer.clock.currentTime);
+		var point_cartographic = Cesium.Cartographic.fromCartesian(point_cartesian);
+		var longitude = Cesium.Math.toDegrees(point_cartographic.longitude);
+		var latitude = Cesium.Math.toDegrees(point_cartographic.latitude);
+		var altitude_amsl = point_cartographic.height;
+                if(kind.startsWith('b') && border_index==0)
+                {   
+                    temp.name = 'b'+border_index+'no'+i;    
+                    temp.point.color = Cesium.Color.RED;
+		    agl_table.push('0');
+		    var altitude_total = altitude_amsl+10;
+		    cartographic_table.push(longitude,latitude,altitude_total);
+                    if(i==point_no-1)
+                    {
+                        console.log('Border object no ' + border_index + ' acquired!');
+                        border_index++;
+                    }
+                }
+                else
+                {
+                    temp.name = 'o'+obstacle_index+'no'+i;       
+		    temp.point.color = Cesium.Color.YELLOW;
+		    agl_table.push(toolbar_def.agl());
+			
+		    var altitude_agl = Number(toolbar_def.agl());
+		    var altitude_total = altitude_amsl + altitude_agl;
+		    cartographic_table.push(longitude,latitude,altitude_total);
+                    if(i==point_no-1)
+                    {
+                        console.log('Obstacle object no ' + obstacle_index + ' acquired!');
+                        obstacle_index++;
+                    }
+                }
+	    }   
+	    if(kind.startsWith('b') && border_index==1)
+	    {	
+		cartographic_table.push(cartographic_table[0]);
+		cartographic_table.push(cartographic_table[1]);
+		cartographic_table.push(cartographic_table[2]);
+		console.log(cartographic_table);		
+		viewer.entities.add({
+		    id : ('pb'+(border_index-1)),
+		    wall : {
+			positions : Cesium.Cartesian3.fromDegreesArrayHeights(cartographic_table),
+			show : toolbar_def.so(),
+			material : Cesium.Color.RED.withAlpha(0.005),
+			fill : true,
+			outline : true,
+			outlineWidth : 2.0,
+			outineColor : Cesium.Color.FIREBRICK
+		    }
+	        });	  
+	    }
+	    else
+	    {
+		viewer.entities.add({
+		    id : ('po'+(obstacle_index-1)),
+		    polygon : {
+			hierarchy : Cesium.Cartesian3.fromDegreesArrayHeights(cartographic_table),
+			perPositionHeight : true,
+		        extrudedHeight : 0,
+			show: toolbar_def.so(),
+			material : Cesium.Color.YELLOW.withAlpha(0.005),
+			closeBottom : false,
+			fill : true,
+			outline : true,
+			outlineWidth : 2.0,
+			outineColor : Cesium.Color.ORANGE
+		    }
+	        });
+	    }
+	    viewer.render();
+	    point_no = 0;
+	}
+    }
+    else
+    {
+        console.log('No point to acquire the object.');
+	alert('No point to acquire the object.');
+    }
+}
+//Funkcja przygotowujaca plik cookie
+function prep_cookie()
+{
+    if((border_index>0 || obstacle_index>0) && point_no==0) 
+    {
+	var coordinates = '';  
+	for(var i=0;i<global_index;i++)
+        {
+	    var entity = viewer.entities.getById(i);
+	    var point_cartesian = entity.position.getValue(viewer.clock.currentTime);
+	    var point_cartographic = Cesium.Cartographic.fromCartesian(point_cartesian);
+	    var longitude = Cesium.Math.toDegrees(point_cartographic.longitude);
+	    var latitude = Cesium.Math.toDegrees(point_cartographic.latitude);
+	    var altitude_amsl = point_cartographic.height;
+	    var altitude_agl = agl_table[i];
+	    //console.log(point.id + '   ' + point.name);
+	    //console.log('LAT: ' + latitude + '   LON:' + longitude + '   AMSL:' + altitude_amsl);
+	    coordinates = coordinates+entity.name+' '+latitude+' '+longitude+' '+altitude_amsl+' '+altitude_agl+'\n';
+	}
+  	set_cookie('getcoordinates',coordinates,1);
+	console.log('Cookie file created!');
+	alert('Cookie file created!');
+    }
+    else if(point_no!=0) 
+    {
+        console.log('Temporary point must be acquired.');
+	alert('Temporary point must be acquired.');
+    }
+    else 
+    {
+       	console.log('Acquire any object first.');
+	alert('Acquire any object first.');
+    }
+}
+//Funkcja wystawiajaca plik cookie
+function set_cookie(cookieName, cookieValue, nDays)
+{
+    var today = new Date();
+    var expire = new Date();
+    
+    if(nDays==null || nDays==0) nDays=1;
+    expire.setTime(today.getTime() + 3600000*24*nDays);
+    document.cookie = cookieName+'='+escape(cookieValue)+';expires='+expire.toGMTString();
+}
+//funkcja obslugujaca uzycie przyciskow myszki
+function click_service(input)
+{
+    if(input) {
+        handler.setInputAction(function(click){
+            var cartesian = scene.pickPosition(click.position);
+        
+            if(Cesium.defined(cartesian) && scene.pickPositionSupported) {     
+                create_point(cartesian);
+            }
+        },Cesium.ScreenSpaceEventType.LEFT_CLICK);
+    
+        handler.setInputAction(function(click){
+       	    remove_point();
+        },Cesium.ScreenSpaceEventType.RIGHT_CLICK);
+    
+        handler.setInputAction(function(click){
+       	    remove_object();
+        },Cesium.ScreenSpaceEventType.RIGHT_CLICK,Cesium.KeyboardEventModifier.CTRL);
+    }
+    else {
+    handler.removeInputAction(Cesium.ScreenSpaceEventType.LEFT_CLICK);
+    handler.removeInputAction(Cesium.ScreenSpaceEventType.RIGHT_CLICK);
+    handler.removeInputAction(Cesium.ScreenSpaceEventType.RIGHT_CLICK,Cesium.KeyboardEventModifier.CTRL);
+    }
+}
+//Funkcja pokazujaca obiekty
+function show_objects(input)
+{
+    if(input)
+    {
+	for(var i=0; i<border_index; i++)
+	{
+	    var temp = viewer.entities.getById('pb'+i);
+	    temp.wall.show = true;
+	}
+	for(var i=0; i<obstacle_index; i++)
+	{
+	    var temp = viewer.entities.getById('po'+i);
+	    temp.polygon.show = true;
+	}
+    }
+    else 
+    {
+	for(var i=0; i<border_index; i++)
+	{
+	    var temp = viewer.entities.getById('pb'+i);
+	    temp.wall.show = false;
+	}
+	for(var i=0; i<obstacle_index; i++)
+	{
+	    var temp = viewer.entities.getById('po'+i);
+	    temp.polygon.show = false;
+	}
+    }
+}
+//Funkcja dodajaca/usuwajaca warstwe zdjeciowa z mapy
+//OFM_START
+function add_layer(input)
+{
+    if (input)
+    {
+        layer_instance = layer.addImageryProvider(new Cesium.SingleTileImageryProvider({
+        url : './SDS.PNG',
+        rectangle : Cesium.Rectangle.fromDegrees(20.983934, 52.268487, 20.985208, 52.2692137)
+        })
+        );
+   }
+   else layer.remove(layer_instance);
+}
+//OFM_STOP
+
+//Obsluga funkcji dla przyciskow toolbar
+var toolbar_def = {
+	ac : function() {    
+    	    prep_cookie();
+	},
+	abo : function() {      
+    	    create_object('border');
+	},
+	aoo : function() {     
+	    create_object('obstacle');
+	},
+	agl : Cesium.knockout.observable("0"),
+	arp : Cesium.knockout.observable(false),
+	so : Cesium.knockout.observable(false),
+	sor : Cesium.knockout.observable(false),
+};
+//Bindowanie definicji toolbar_def i zdarzen toolbar
+Cesium.knockout.applyBindings(toolbar_def, toolbar);
+//Funkcja obslugujaca funkcje dodawania/usuwania punktow i przegladania mapy
+toolbar_def.arp.subscribe(function(newValue) {
+    click_service(newValue);
+});
+//Funkcja obslugujaca pokazywanie obiektow
+toolbar_def.so.subscribe(function(newValue) {
+    show_objects(newValue);
+});
+//Funkcja obslugujaca dodawanie warstwy zdjeciowej
+toolbar_def.sor.subscribe(function(newValue) {
+    add_layer(newValue);
+});
+/*
+function read_cookie(cookieName)
+{
+    var theCookie=' '+document.cookie;
+    var ind = theCookie.indexOf(' '+cookieName+'=');
+    if(ind==-1) ind=theCookie.indexOf(';'+cookieName+'=');
+    if(ind==-1 || cookieName=='') return '';
+    var ind1=theCookie.indexOf(';',ind+1);
+    if(ind1==-1) ind1=theCookie.length;
+    return unescape(theCookie.substring(ind+cookieName.length+2,ind1));
+}
+Sandcastle.addToolbarButton('Check ciasteczko', function(){       
+    console.log(read_cookie('getcoordinates'));
+});*/
+		//Sandcastle_End
+    Sandcastle.finishedLoading();
+}
+if (typeof Cesium !== "undefined") {
+    startup(Cesium);
+} else if (typeof require === "function") {
+    require(["Cesium"], startup);
+}
+</script>
+
+</body>
+</html>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
