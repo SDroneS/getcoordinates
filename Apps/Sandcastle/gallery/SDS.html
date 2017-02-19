@@ -49,7 +49,9 @@ function startup(Cesium) {
     'use strict';
 //Sandcastle_Begin
 //Aby nie wyswietlal sie komunikat o defaultowym kluczu, trzeba przypisac go dwukrotnie
+var TEST = 0;
 Cesium.BingMapsApi.defaultKey = 'AoVAit6QELidKrHbgDmc3d2lwC5Q49B8hlMgmD-9pzRY1fRhw-ZjLV3VfQG-_5XJ';
+
 var viewer = new Cesium.Viewer('cesiumContainer', {
     terrainProvider : new Cesium.CesiumTerrainProvider({
         url : 'https://assets.agi.com/stk-terrain/world'
@@ -68,16 +70,25 @@ mapStyle: Cesium.BingMapsStyle.AERIAL
     navigationInstructionsInitiallyVisible : false,
     terrainShadows : Cesium.ShadowMode.DISABLED   
 });
+
 //Zblizenie na terytorium Polski po starcie mapy
-viewer.camera.flyTo({
-    destination : Cesium.Cartesian3.fromDegrees(20, 52, 10e5)
-//destination : Cesium.Cartesian3.fromDegrees(20, 52, 1000)
-});
+if(TEST==0) {
+    viewer.camera.flyTo({
+        destination : Cesium.Cartesian3.fromDegrees(19, 52, 10e5)
+    });
+}
+else {
+    viewer.camera.flyTo({
+	destination : Cesium.Cartesian3.fromDegrees(20.25, 52.907, 1000)
+    });
+}
+
 viewer.scene.globe.depthTestAgainstTerrain = true;
 var scene = viewer.scene;
 var layer = viewer.imageryLayers;
 var handler = new Cesium.ScreenSpaceEventHandler(viewer.canvas);
 var toolbar = document.getElementById('toolbar');
+
 //Zmienne globalne zliczajace liczbe punktow i obiektow
 var global_index = 0;
 var border_index = 0;
@@ -85,6 +96,7 @@ var obstacle_index = 0;
 var point_no = 0;
 var agl_table = new Array();
 var layer_instance;
+
 //Funkcja tworzaca punkt tymczasowy
 function create_point(place)
 {
@@ -106,6 +118,7 @@ function create_point(place)
     global_index++;
     console.log('Temporary point created.');
 }
+
 //Funkcja usuwajaca punkt tymczasowy
 function remove_point()
 {
@@ -130,6 +143,7 @@ function remove_point()
         }
     }
 }
+
 //Funkcja usuwajaca ostatni punkt obiektu. Zmienia pozostale punkty obiektu na tymczasowe
 function remove_object()
 {
@@ -178,6 +192,7 @@ function remove_object()
 	alert('Cannot remove previous object. Remove temporary points first.');
     }
 }
+
 //Funkcja tworzaca obiekt. Zmienia punkty tymczasowe na wlasciwe dla danego obiektu
 function create_object(kind)
 {
@@ -203,7 +218,7 @@ function create_object(kind)
                 {   
                     temp.name = 'b'+border_index+'no'+i;    
                     temp.point.color = Cesium.Color.RED;
-		    agl_table.push('0');
+		    agl_table.push(0);
 		    var altitude_total = altitude_amsl+10;
 		    cartographic_table.push(longitude,latitude,altitude_total);
                     if(i==point_no-1)
@@ -216,7 +231,7 @@ function create_object(kind)
                 {
                     temp.name = 'o'+obstacle_index+'no'+i;       
 		    temp.point.color = Cesium.Color.YELLOW;
-		    agl_table.push(toolbar_def.agl());
+		    agl_table.push(Number(toolbar_def.agl()));
 			
 		    var altitude_agl = Number(toolbar_def.agl());
 		    var altitude_total = altitude_amsl + altitude_agl;
@@ -233,7 +248,7 @@ function create_object(kind)
 		cartographic_table.push(cartographic_table[0]);
 		cartographic_table.push(cartographic_table[1]);
 		cartographic_table.push(cartographic_table[2]);
-		console.log(cartographic_table);		
+		//console.log(cartographic_table);		
 		viewer.entities.add({
 		    id : ('pb'+(border_index-1)),
 		    wall : {
@@ -275,6 +290,7 @@ function create_object(kind)
 	alert('No point to acquire the object.');
     }
 }
+
 //Funkcja przygotowujaca plik cookie
 function prep_cookie()
 {
@@ -292,11 +308,13 @@ function prep_cookie()
 	    var altitude_agl = agl_table[i];
 	    //console.log(point.id + '   ' + point.name);
 	    //console.log('LAT: ' + latitude + '   LON:' + longitude + '   AMSL:' + altitude_amsl);
-	    coordinates = coordinates+entity.name+' '+latitude+' '+longitude+' '+altitude_amsl+' '+altitude_agl+'\n';
+	    coordinates = coordinates+entity.name+' '+latitude.toFixed(7)+' '+longitude.toFixed(7)+' '+altitude_amsl.toFixed(1)+' '+altitude_agl.toFixed(1)+'\n';
 	}
   	set_cookie('getcoordinates',coordinates,1);
 	console.log('Cookie file created!');
-	alert('Cookie file created!');
+	//console.log(coordinates);
+	//console.log(coordinates.length);
+	//alert('Cookie file created!');
     }
     else if(point_no!=0) 
     {
@@ -309,6 +327,7 @@ function prep_cookie()
 	alert('Acquire any object first.');
     }
 }
+
 //Funkcja wystawiajaca plik cookie
 function set_cookie(cookieName, cookieValue, nDays)
 {
@@ -319,6 +338,7 @@ function set_cookie(cookieName, cookieValue, nDays)
     expire.setTime(today.getTime() + 3600000*24*nDays);
     document.cookie = cookieName+'='+escape(cookieValue)+';expires='+expire.toGMTString();
 }
+
 //funkcja obslugujaca uzycie przyciskow myszki
 function click_service(input)
 {
@@ -345,6 +365,7 @@ function click_service(input)
     handler.removeInputAction(Cesium.ScreenSpaceEventType.RIGHT_CLICK,Cesium.KeyboardEventModifier.CTRL);
     }
 }
+
 //Funkcja pokazujaca obiekty
 function show_objects(input)
 {
@@ -375,6 +396,7 @@ function show_objects(input)
 	}
     }
 }
+
 //Funkcja dodajaca/usuwajaca warstwe zdjeciowa z mapy
 //OFM_START
 function add_layer(input)
@@ -407,21 +429,26 @@ var toolbar_def = {
 	so : Cesium.knockout.observable(false),
 	sor : Cesium.knockout.observable(false),
 };
+
 //Bindowanie definicji toolbar_def i zdarzen toolbar
 Cesium.knockout.applyBindings(toolbar_def, toolbar);
+
 //Funkcja obslugujaca funkcje dodawania/usuwania punktow i przegladania mapy
 toolbar_def.arp.subscribe(function(newValue) {
     click_service(newValue);
 });
+
 //Funkcja obslugujaca pokazywanie obiektow
 toolbar_def.so.subscribe(function(newValue) {
     show_objects(newValue);
 });
+
 //Funkcja obslugujaca dodawanie warstwy zdjeciowej
 toolbar_def.sor.subscribe(function(newValue) {
     add_layer(newValue);
 });
-/*
+
+
 function read_cookie(cookieName)
 {
     var theCookie=' '+document.cookie;
@@ -432,9 +459,11 @@ function read_cookie(cookieName)
     if(ind1==-1) ind1=theCookie.length;
     return unescape(theCookie.substring(ind+cookieName.length+2,ind1));
 }
+
 Sandcastle.addToolbarButton('Check ciasteczko', function(){       
     console.log(read_cookie('getcoordinates'));
-});*/
+});
+
 		//Sandcastle_End
     Sandcastle.finishedLoading();
 }
